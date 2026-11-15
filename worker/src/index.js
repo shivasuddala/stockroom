@@ -45,7 +45,7 @@ async function runModel(env, system, user, maxTokens = 600) {
       { role: "user", content: user }
     ],
     max_completion_tokens: maxTokens,
-    temperature: 0.1
+    temperature: 0
   });
   return parseModelJson(output);
 }
@@ -89,7 +89,7 @@ export default {
 
         const result = await runModel(env,
           "You are a product search ranker. Rank only the supplied inventory items by relevance to the user's phrase. Never invent or alter IDs. Return only JSON in this shape: {\"matches\":[{\"id\":\"provided id\",\"score\":0.0}]}. Include at most 8 unique IDs. Do not include explanations.",
-          JSON.stringify({ query, items }), 420);
+          JSON.stringify({ query, items }), 140);
         const validIds = new Set(items.map(item => item.id));
         const seen = new Set();
         const matches = (Array.isArray(result.matches) ? result.matches : [])
@@ -104,7 +104,7 @@ export default {
       if (!description) return json({ error: "Describe the product first." }, 400, env, origin);
       const result = await runModel(env,
         "You help a shop set up a product record. Return only JSON with keys name, category, unit, packUnit, packSize, outerUnit, outerCount. Suggest a category from the supplied list when suitable. Extract package quantities only when clear from the description; otherwise use empty strings. Choose a practical smallest count unit such as piece, tablet, g, or ml. Never return price, cost, stock quantity, barcode, expiry, or dosage. Do not claim facts that are not in the description. These are suggestions that a human will review.",
-        JSON.stringify({ description, availableCategories: categories }), 260);
+        JSON.stringify({ description, availableCategories: categories }), 180);
       const suggestion = {
         name: safeText(result.name, 100) || description,
         category: safeText(result.category, 50),
@@ -117,7 +117,8 @@ export default {
       return json({ suggestion, model: MODEL }, 200, env, origin);
     } catch (error) {
       console.error("Workers AI request failed", error);
-      return json({ error: "The AI request failed. Check the Worker AI binding and try again." }, 502, env, origin);
+      const detail = safeText(error?.message || "", 220);
+      return json({ error: detail ? `The AI model failed: ${detail}` : "The AI model request failed. Check the Worker logs for details." }, 502, env, origin);
     }
   }
 };
